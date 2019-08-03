@@ -1,10 +1,13 @@
 package main
 
 import (
+	"cloud.google.com/go/storage"
+	"context"
 	"encoding/json"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,12 +27,35 @@ func main() {
 		r.ParseMultipartForm(1024)
 		fileHeader := r.MultipartForm.File["uploaded"][0]
 		file, err := fileHeader.Open()
+
+		ctx := context.Background()
+
+		// Creates a client.
+		client, err := storage.NewClient(ctx)
+		if err != nil {
+			log.Fatalf("Failed to create client: %v", err)
+		}
+
+		// Sets the name for the new bucket.
+		bucketName := "hello-world-243909.appspot.com"
+		// Creates a Bucket instance.
+		bucket := client.Bucket(bucketName)
+
+		wc := bucket.Object("giants.jpg").NewWriter(ctx)
+		if _, err = io.Copy(wc, file); err != nil {
+			return
+		}
+		if err := wc.Close(); err != nil {
+			return
+		}
+
 		if err == nil {
 			data, err := ioutil.ReadAll(file)
 			if err == nil {
 				fmt.Fprintln(w, string(data))
 			}
 		}
+
 		return
 	})
 
