@@ -8,54 +8,31 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"io"
-	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 )
 
 type Person struct {
 	gorm.Model
-	Name string `json:"name"`
-	Age  int    `json:"age"`
+	Name  string `json:"name"`
+	Age   int    `json:"age"`
+	Image string `json:"image"`
 }
 
 var db *gorm.DB
+var rs1Letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseMultipartForm(1024)
-		fileHeader := r.MultipartForm.File["uploaded"][0]
-		file, err := fileHeader.Open()
-
-		ctx := context.Background()
-
-		// Creates a client.
-		client, err := storage.NewClient(ctx)
-		if err != nil {
-			log.Fatalf("Failed to create client: %v", err)
-		}
-
-		// Sets the name for the new bucket.
-		bucketName := "hello-world-243909.appspot.com"
-		// Creates a Bucket instance.
-		bucket := client.Bucket(bucketName)
-
-		wc := bucket.Object("giants.jpg").NewWriter(ctx)
-		if _, err = io.Copy(wc, file); err != nil {
-			return
-		}
-		if err := wc.Close(); err != nil {
-			return
-		}
-
-		if err == nil {
-			data, err := ioutil.ReadAll(file)
-			if err == nil {
-				fmt.Fprintln(w, string(data))
-			}
-		}
-
+		fmt.Fprintf(w, "Hello world")
 		return
 	})
 
@@ -83,20 +60,41 @@ func main() {
 			fmt.Fprintf(w, "%s\n", str)
 			return
 		} else if r.Method == http.MethodPost {
-			db = DB()
-			defer r.Body.Close()
-			defer db.Close()
-			body, err := ioutil.ReadAll(r.Body)
+			r.ParseMultipartForm(1024)
+			fileHeader := r.MultipartForm.File["uploaded"][0]
+			name := r.MultipartForm.Value["dataA"][0]
+			age := r.MultipartForm.Value["dataB"][0]
+			file, err := fileHeader.Open()
+			defer file.Close()
+
+			ctx := context.Background()
+
+			client, err := storage.NewClient(ctx)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("Failed to create client: %v", err)
 			}
-			jsonBytes := ([]byte)(string(body))
-			data := new(Person)
-			if err := json.Unmarshal(jsonBytes, data); err != nil {
-				fmt.Println("JSON Unmarshal error:", err)
+
+			bucketName := "hello-world-243909.appspot.com"
+			bucket := client.Bucket(bucketName)
+
+			randString := RandString1(16)
+
+			wc := bucket.Object(randString).NewWriter(ctx)
+			if _, err = io.Copy(wc, file); err != nil {
 				return
 			}
-			db.Create(&data)
+			if err := wc.Close(); err != nil {
+				return
+			}
+			db = DB()
+			defer db.Close()
+
+			person := Person{}
+			person.Name = name
+			person.Age, _ = strconv.Atoi(age)
+			person.Image = "https://storage.googleapis.com/hello-world-243909.appspot.com/" + randString
+			db.Create(&person)
+
 			return
 		} else {
 			db = DB()
@@ -144,4 +142,12 @@ func DB() *gorm.DB {
 	}
 
 	return conn
+}
+
+func RandString1(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = rs1Letters[rand.Intn(len(rs1Letters))]
+	}
+	return string(b)
 }
