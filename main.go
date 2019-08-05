@@ -8,6 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -95,6 +96,19 @@ func main() {
 			person.Image = "https://storage.googleapis.com/hello-world-243909.appspot.com/" + randString
 			db.Create(&person)
 
+			return
+		} else if r.Method == http.MethodDelete {
+			db = DB()
+			defer r.Body.Close()
+			defer db.Close()
+			body, _ := ioutil.ReadAll(r.Body)
+			jsonBytes := ([]byte)(string(body))
+			data := new(Person)
+			if err := json.Unmarshal(jsonBytes, data); err != nil {
+				fmt.Println("JSON Unmarshal error:", err)
+				return
+			}
+			db.Where("ID = ?", data.Model.ID).Delete(&Person{})
 			return
 		} else {
 			db = DB()
